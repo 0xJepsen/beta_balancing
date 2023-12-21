@@ -1,6 +1,6 @@
 use std::collections::hash_map::HashMap;
 
-use RustQuant::{self, data::{YahooFinanceData, YahooFinanceReader}, portfolio};
+use RustQuant::{self, data::{YahooFinanceData, YahooFinanceReader}, portfolio::{self, Position}};
 use anyhow::{Result, Ok};
 use tokio;
 use yahoo_finance_api as yahoo;
@@ -17,11 +17,14 @@ struct Portfolio {
 async fn main() -> Result<()> {
 
     let portfolio = get_portfolio();
-
     let prices = get_prices(&portfolio).await;
 
-
+    let total_value: f32 = portfolio.iter()
+        .map(|(symbol, weight)| weight * prices.get(symbol).unwrap_or(&0.0))
+        .sum();
+    println!("Total value of the portfolio: ${}", total_value);
     Ok(())
+
 }
 
 async fn get_prices(portfolio: &HashMap<String, f32>) -> HashMap<String, f32> {
@@ -31,9 +34,8 @@ async fn get_prices(portfolio: &HashMap<String, f32>) -> HashMap<String, f32> {
     for (symbol, _) in portfolio {
         let response = provider.get_latest_quotes(symbol, "1d").await.unwrap();
         let quote = response.last_quote().unwrap();
-        prices.insert(symbol.clone(), quote.close as );
+        prices.insert(symbol.clone(), quote.close as f32);
     }
-
     prices
 }
 
