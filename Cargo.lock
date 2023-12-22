@@ -276,6 +276,7 @@ version = "0.1.0"
 dependencies = [
  "RustQuant",
  "anyhow",
+ "futures",
  "polars 0.35.4",
  "tokio",
  "yahoo_finance_api",

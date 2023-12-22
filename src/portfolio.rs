@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use polars::prelude::*;
 use yahoo_finance_api::YahooConnector;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use anyhow::{Ok, Result};
 
 pub struct Portfolio {
@@ -21,6 +23,10 @@ impl Portfolio {
         PortfolioBuilder::new()
     }
 
+    pub fn get_portfolio_value(&self) -> f64 {
+        self.positions.iter().fold(0.0, |acc, x| acc + (x.last_price * x.amount_held))
+    }
+
     pub async fn get_actual_weights(&mut self) -> Result<DataFrame> {
         self.update_prices().await?;
         let mut actual_weights = HashMap::new();
@@ -29,6 +35,9 @@ impl Portfolio {
             let weight = asset.last_price / total_value;
             actual_weights.insert(asset.ticker.clone(), weight);
         }
+
+        let total_weight: f64 = actual_weights.values().sum();
+        assert!((total_weight - 1.0).abs() < 1e-8, "Weights do not add up to 1");
         let df = self.weights_to_dataframe(actual_weights)?;
         Ok(df)
     }
@@ -40,14 +49,16 @@ impl Portfolio {
             "weight" => weights
         )?)
     }
-
-
+    
     async fn update_prices(&mut self) -> Result<()> {
-        for asset in &mut self.positions {
-            asset.fetch_price().await?;
+        let mut futures: FuturesUnordered<_> = self.positions.iter_mut().map(|asset| asset.fetch_price()).collect();
+        while let Some(result) = futures.next().await {
+            result?;
         }
         Ok(())
     }
+
+    
 }
 
 pub struct PortfolioBuilder {
@@ -76,14 +87,13 @@ impl PortfolioBuilder {
     pub async fn build(self) -> Result<Portfolio> {
         if self.positions.is_empty() {
             let positions = vec![
-                Asset::new(COIN).await?,
-                Asset::new(NVDA).await?,
-                Asset::new(GLDM).await?,
-                Asset::new(SPY).await?,
-                Asset::new(ENPH).await?,
-                Asset::new(QCLN).await?,
-                Asset::new(MSTR).await?,
-                Asset::new(MARA).await?,
+                Asset::new(COIN, 10.0).await?,
+                Asset::new(NVDA, 2.0).await?,
+                Asset::new(GLDM, 4.0).await?,
+                Asset::new(SPY, 1.0).await?,
+                Asset::new(ENPH, 3.0).await?,
+                Asset::new(APPlE, 1.5).await?,
+                Asset::new(MSFT, 0.38).await?,
             ];
             Ok(Portfolio {
                 positions,
@@ -101,8 +111,8 @@ impl PortfolioBuilder {
         }
     }
 
-    pub async fn add_asset(mut self, ticker: &str) -> Self {
-        let asset = Asset::new(ticker).await.unwrap();
+    pub async fn add_asset(mut self, ticker: &str, amount: f64) -> Self {
+        let asset = Asset::new(ticker, amount).await.unwrap();
         self.positions.push(asset);
         self
     }
@@ -138,6 +148,7 @@ impl std::fmt::Debug for RebalanceType {
 
 pub struct Asset {
     pub ticker: String,
+    pub amount_held: f64,
     pub client: YahooConnector,
     pub last_price: f64,
     pub name: String,
@@ -154,13 +165,14 @@ impl std::fmt::Debug for Asset {
 }
 
 impl Asset {
-    async fn new(ticker: &str) -> Result<Self> {
+    async fn new(ticker: &str, ammount: f64) -> Result<Self> {
         let client = YahooConnector::new();
         let res = client.get_latest_quotes(ticker, "1d").await?;
         let currency = res.metadata().unwrap().currency;
         let last_price = res.last_quote()?.close;
 
         Ok(Self {
+            amount_held: ammount,
             ticker: ticker.to_string(),
             client,
             name: currency,
@@ -193,6 +205,9 @@ fn load_weights() -> HashMap<String, f32> {
 const REBALANCE_FREQUENCY: u32 = 30;
 const REBALANCE_THRESHOLD: f32 = 0.05;
 
+const MSFT: &str = "MSFT";
+const AMD: &str = "AMD";
+const APPlE: &str = "AAPL";
 const COIN: &str = "COIN";
 const NVDA: &str = "NVDA";
 const GLDM: &str = "GLDM";
