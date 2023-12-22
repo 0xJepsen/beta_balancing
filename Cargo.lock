@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "RustQuant"
-version = "0.0.41"
+version = "0.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f307aff9eb9283ad7d92bf68df1c8f7b370143ddd6c33c57fa3b810bcb9a43"
+checksum = "25ae3ae65c7e148c93c5465c9a92d226d9db77902a675bd2f11bcbcaa47a4fb1"
 dependencies = [
  "csv",
  "nalgebra 0.32.3",
