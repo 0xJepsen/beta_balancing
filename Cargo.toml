@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 RustQuant = { version = "0.0.42", features = ["data"] }
 anyhow = "1.0.75"
-futures = "0.3.29"
+futures = "0.3.30"
 polars = "0.35.4"
 tokio = "1.35.0"
 yahoo_finance_api = "2.1.0"
