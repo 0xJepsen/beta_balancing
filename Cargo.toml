@@ -13,3 +13,4 @@ polars = "0.35.4"
 tokio = "1.35.0"
 yahoo_finance_api = "2.1.0"
 
+rust-gecko = { git = "https://github.com/0xJepsen/rust-gecko.git", branch = "main" }

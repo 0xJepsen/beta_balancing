@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use polars::prelude::*;
-use yahoo_finance_api::YahooConnector;
+use anyhow::{Ok, Result};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use anyhow::{Ok, Result};
+use polars::prelude::*;
+use yahoo_finance_api::YahooConnector;
 
 pub struct Portfolio {
     // asset and wieght
@@ -24,7 +24,9 @@ impl Portfolio {
     }
 
     pub fn get_portfolio_value(&self) -> f64 {
-        self.positions.iter().fold(0.0, |acc, x| acc + (x.last_price * x.amount_held))
+        self.positions
+            .iter()
+            .fold(0.0, |acc, x| acc + (x.last_price * x.amount_held))
     }
 
     pub async fn get_actual_weights(&mut self) -> Result<DataFrame> {
@@ -37,7 +39,10 @@ impl Portfolio {
         }
 
         let total_weight: f64 = actual_weights.values().sum();
-        assert!((total_weight - 1.0).abs() < 1e-8, "Weights do not add up to 1");
+        assert!(
+            (total_weight - 1.0).abs() < 1e-8,
+            "Weights do not add up to 1"
+        );
         let df = self.weights_to_dataframe(actual_weights)?;
         Ok(df)
     }
@@ -49,16 +54,18 @@ impl Portfolio {
             "weight" => weights
         )?)
     }
-    
+
     async fn update_prices(&mut self) -> Result<()> {
-        let mut futures: FuturesUnordered<_> = self.positions.iter_mut().map(|asset| asset.fetch_price()).collect();
+        let mut futures: FuturesUnordered<_> = self
+            .positions
+            .iter_mut()
+            .map(|asset| asset.fetch_price())
+            .collect();
         while let Some(result) = futures.next().await {
             result?;
         }
         Ok(())
     }
-
-    
 }
 
 pub struct PortfolioBuilder {
@@ -92,7 +99,7 @@ impl PortfolioBuilder {
                 Asset::new(GLDM, 4.0).await?,
                 Asset::new(SPY, 1.0).await?,
                 Asset::new(ENPH, 3.0).await?,
-                Asset::new(APPlE, 1.5).await?,
+                Asset::new(APPL, 1.5).await?,
                 Asset::new(MSFT, 0.38).await?,
             ];
             Ok(Portfolio {
@@ -206,8 +213,9 @@ const REBALANCE_FREQUENCY: u32 = 30;
 const REBALANCE_THRESHOLD: f32 = 0.05;
 
 const MSFT: &str = "MSFT";
+#[allow(dead_code)]
 const AMD: &str = "AMD";
-const APPlE: &str = "AAPL";
+const APPL: &str = "AAPL";
 const COIN: &str = "COIN";
 const NVDA: &str = "NVDA";
 const GLDM: &str = "GLDM";
