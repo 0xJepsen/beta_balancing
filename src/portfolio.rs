@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use anyhow::{Ok, Result};
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{stream::FuturesUnordered, StreamExt};
 use polars::prelude::*;
-use yahoo_finance_api::YahooConnector;
+
+use crate::assets::{Stock, Crypto, Asset};
 
 pub struct Portfolio {
     // asset and wieght
-    pub positions: Vec<Asset>,
+    pub positions: (Vec<Stock>, Vec<Crypto>),
     // maybe we want time series of pvf
     // value_over_time: Vec<f32>,
     // target weights
@@ -24,18 +24,24 @@ impl Portfolio {
     }
 
     pub fn get_portfolio_value(&self) -> f64 {
-        self.positions
+        let stocks_value = self.positions.0
             .iter()
-            .fold(0.0, |acc, x| acc + (x.last_price * x.amount_held))
+            .fold(0.0, |acc, x| acc + (x.last_price * x.amount_held));
+        let cryptos_value = self.positions.1
+            .iter()
+            .fold(0.0, |acc, x| acc + (x.last_price * x.amount_held));
+        stocks_value + cryptos_value
     }
 
     pub async fn get_actual_weights(&mut self) -> Result<DataFrame> {
         self.update_prices().await?;
         let mut actual_weights = HashMap::new();
-        let total_value = self.positions.iter().fold(0.0, |acc, x| acc + x.last_price);
-        for asset in &self.positions {
-            let weight = asset.last_price / total_value;
-            actual_weights.insert(asset.ticker.clone(), weight);
+        let total_value = self.positions.0.iter().fold(0.0, |acc, x| acc + x.last_price * x.amount_held)
+        + self.positions.1.iter().fold(0.0, |acc, x| acc + x.last_price * x.amount_held);
+
+        for asset in self.positions.0.iter().map(|x| x as &dyn Asset).chain(self.positions.1.iter().map(|x| x as &dyn Asset)) {
+            let weight = asset.last_price() * asset.amount_held() / total_value;
+            actual_weights.insert(asset.ticker(), weight);
         }
 
         let total_weight: f64 = actual_weights.values().sum();
@@ -56,8 +62,26 @@ impl Portfolio {
     }
 
     async fn update_prices(&mut self) -> Result<()> {
+        self.update_stock_prices().await?;
+        self.update_crypto_prices().await?;
+        Ok(())
+    }
+    async fn update_stock_prices(&mut self) -> Result<()> {
         let mut futures: FuturesUnordered<_> = self
             .positions
+            .0
+            .iter_mut()
+            .map(|asset| asset.fetch_price())
+            .collect();
+        while let Some(result) = futures.next().await {
+            result?;
+        }
+        Ok(())
+    }
+    async fn update_crypto_prices(&mut self) -> Result<()> {
+        let mut futures: FuturesUnordered<_> = self
+            .positions
+            .1
             .iter_mut()
             .map(|asset| asset.fetch_price())
             .collect();
@@ -69,7 +93,7 @@ impl Portfolio {
 }
 
 pub struct PortfolioBuilder {
-    positions: Vec<Asset>,
+    positions: Vec<Stock>,
     target_weights: HashMap<String, f32>,
     rebalance_type: RebalanceType,
     rebalance_threshold: Option<f32>,
@@ -93,24 +117,27 @@ impl PortfolioBuilder {
 
     pub async fn build(self) -> Result<Portfolio> {
         if self.positions.is_empty() {
-            let positions = vec![
-                Asset::new(COIN, 10.0).await?,
-                Asset::new(NVDA, 2.0).await?,
-                Asset::new(GLDM, 4.0).await?,
-                Asset::new(SPY, 1.0).await?,
-                Asset::new(ENPH, 3.0).await?,
-                Asset::new(APPL, 1.5).await?,
-                Asset::new(MSFT, 0.38).await?,
+            let stock = vec![
+                Stock::new(COIN, 10.0).await?,
+                Stock::new(NVDA, 2.0).await?,
+                Stock::new(GLDM, 4.0).await?,
+                Stock::new(SPY, 1.0).await?,
+                Stock::new(ENPH, 3.0).await?,
+                Stock::new(APPL, 1.5).await?,
+                Stock::new(MSFT, 0.38).await?,
+            ];
+            let crypto = vec![
+                Crypto::new("ethereum", "ETH", 10.0).await?,
             ];
             Ok(Portfolio {
-                positions,
+                positions: (stock, crypto),
                 target_weights: load_weights(),
                 rebalance_type: RebalanceType::Threshold(REBALANCE_THRESHOLD),
                 rebalance_threshold: self.rebalance_threshold,
             })
         } else {
             Ok(Portfolio {
-                positions: self.positions,
+                positions: (self.positions, Vec::new()),
                 target_weights: self.target_weights,
                 rebalance_type: self.rebalance_type,
                 rebalance_threshold: self.rebalance_threshold,
@@ -119,7 +146,7 @@ impl PortfolioBuilder {
     }
 
     pub async fn add_asset(mut self, ticker: &str, amount: f64) -> Self {
-        let asset = Asset::new(ticker, amount).await.unwrap();
+        let asset = Stock::new(ticker, amount).await.unwrap();
         self.positions.push(asset);
         self
     }
@@ -153,47 +180,6 @@ impl std::fmt::Debug for RebalanceType {
     }
 }
 
-pub struct Asset {
-    pub ticker: String,
-    pub amount_held: f64,
-    pub client: YahooConnector,
-    pub last_price: f64,
-    pub name: String,
-}
-
-impl std::fmt::Debug for Asset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Asset {{ ticker: {}, name: {}, last_price: {} }}",
-            self.ticker, self.name, self.last_price
-        )
-    }
-}
-
-impl Asset {
-    async fn new(ticker: &str, ammount: f64) -> Result<Self> {
-        let client = YahooConnector::new();
-        let res = client.get_latest_quotes(ticker, "1d").await?;
-        let currency = res.metadata().unwrap().currency;
-        let last_price = res.last_quote()?.close;
-
-        Ok(Self {
-            amount_held: ammount,
-            ticker: ticker.to_string(),
-            client,
-            name: currency,
-            last_price,
-        })
-    }
-
-    #[allow(dead_code)]
-    async fn fetch_price(&mut self) -> Result<()> {
-        let res = self.client.get_latest_quotes(&self.ticker, "1d").await?;
-        self.last_price = res.last_quote()?.close;
-        Ok(())
-    }
-}
 
 fn load_weights() -> HashMap<String, f32> {
     let mut map = HashMap::new();
