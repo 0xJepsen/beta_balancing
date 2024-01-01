@@ -257,10 +257,10 @@ impl PortfolioBuilder {
                 Stock::new(MSFT, 0.38).await?,
             ];
             let crypto = vec![];
-            let actual_weights = load_target_weights();
+            let actual_weights = HashMap::new();
             Ok(Portfolio {
                 positions: (stock, crypto),
-                target_weights: load_target_weights(),
+                target_weights: self.load_target_weights(),
                 actual_weights,
                 rebalance_type: RebalanceType::Threshold(REBALANCE_THRESHOLD),
                 rebalance_threshold: self.rebalance_threshold,
@@ -276,6 +276,19 @@ impl PortfolioBuilder {
                 cash: 0.0,
             })
         }
+    }
+    fn load_target_weights(&self) -> HashMap<String, f64> {
+        let mut map = HashMap::new();
+        map.insert(COIN.to_string(), 0.15);
+        map.insert(NVDA.to_string(), 0.20);
+        map.insert(GLDM.to_string(), 0.10);
+        map.insert(SPY.to_string(), 0.30);
+        map.insert(ENPH.to_string(), 0.10);
+        map.insert(QCLN.to_string(), 0.10);
+        map.insert(MSTR.to_string(), 0.025);
+        map.insert(MARA.to_string(), 0.025);
+        map.insert("USD".to_string(), 0.0);
+        map
     }
 
     pub async fn add_asset(mut self, ticker: &str, amount: f64) -> Self {
@@ -311,20 +324,6 @@ impl std::fmt::Debug for RebalanceType {
             RebalanceType::None => write!(f, "None"),
         }
     }
-}
-
-fn load_target_weights() -> HashMap<String, f64> {
-    let mut map = HashMap::new();
-    map.insert(COIN.to_string(), 0.15);
-    map.insert(NVDA.to_string(), 0.20);
-    map.insert(GLDM.to_string(), 0.10);
-    map.insert(SPY.to_string(), 0.30);
-    map.insert(ENPH.to_string(), 0.10);
-    map.insert(QCLN.to_string(), 0.10);
-    map.insert(MSTR.to_string(), 0.025);
-    map.insert(MARA.to_string(), 0.025);
-    map.insert("USD".to_string(), 0.0);
-    map
 }
 
 #[allow(dead_code)]
