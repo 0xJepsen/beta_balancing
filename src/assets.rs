@@ -1,5 +1,5 @@
-use yahoo_finance_api::YahooConnector;
 use anyhow::Result;
+use yahoo_finance_api::YahooConnector;
 
 pub trait Asset {
     fn last_price(&self) -> f64;
@@ -8,15 +8,27 @@ pub trait Asset {
 }
 
 impl Asset for Stock {
-    fn last_price(&self) -> f64 { self.last_price }
-    fn amount_held(&self) -> f64 { self.amount_held }
-    fn ticker(&self) -> String { self.ticker.clone() }
+    fn last_price(&self) -> f64 {
+        self.last_price
+    }
+    fn amount_held(&self) -> f64 {
+        self.amount_held
+    }
+    fn ticker(&self) -> String {
+        self.ticker.clone()
+    }
 }
 
 impl Asset for Crypto {
-    fn last_price(&self) -> f64 { self.last_price }
-    fn amount_held(&self) -> f64 { self.amount_held }
-    fn ticker(&self) -> String { self.token.clone() }
+    fn last_price(&self) -> f64 {
+        self.last_price
+    }
+    fn amount_held(&self) -> f64 {
+        self.amount_held
+    }
+    fn ticker(&self) -> String {
+        self.token.clone()
+    }
 }
 pub struct Stock {
     pub ticker: String,
@@ -90,22 +102,22 @@ impl Crypto {
 
         let last_price = s.fetch_price().await?;
 
-        Ok(Self {
-            last_price,
-            ..s
-        })
-
+        Ok(Self { last_price, ..s })
     }
 
     pub async fn fetch_price(&mut self) -> Result<f64> {
         let res_owned_name = self.name.clone();
-        let res_owned_name_clone = res_owned_name.clone(); 
+        let res_owned_name_clone = res_owned_name.clone();
         let res = tokio::task::spawn_blocking(move || {
             rust_gecko::simple::price(vec![&res_owned_name], vec!["usd"], None, None, None, None)
-        }).await?;
+        })
+        .await?;
         match res.json {
             Some(json) => {
-                let eth_price = json.get(res_owned_name_clone).and_then(|eth| eth.get("usd")).unwrap();
+                let eth_price = json
+                    .get(res_owned_name_clone)
+                    .and_then(|eth| eth.get("usd"))
+                    .unwrap();
                 let eth_price = eth_price.as_f64().unwrap_or(0.0);
                 Ok(eth_price)
             }
@@ -122,7 +134,8 @@ pub async fn get_historical_daily_prices(number_of_days: i64, id: &str) -> Resul
             (number_of_days - 1).to_string().as_str(),
             Some("daily"),
         )
-    }).await?;
+    })
+    .await?;
     let json = eth_historical_price.json.clone().unwrap();
     // can also parse the daily market caps and total volumes from this repsonse
     let prices: Vec<_> = json
