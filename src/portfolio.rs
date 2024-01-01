@@ -53,7 +53,8 @@ impl Portfolio {
             .map(|x| x as &dyn Asset)
             .chain(self.positions.1.iter().map(|x| x as &dyn Asset))
         {
-            let weight = (USD::new(asset.last_price().amount * asset.amount_held()) / total_value).amount;
+            let weight =
+                (USD::new(asset.last_price().amount * asset.amount_held()) / total_value).amount;
             actual_weights.insert(asset.ticker(), weight);
         }
 
@@ -158,8 +159,7 @@ impl Portfolio {
 
         for asset in &self.positions.0 {
             if cash_per_asset.amount > 0.0 {
-                let quantity_to_buy = 
-                (cash_per_asset / asset.last_price()).amount;
+                let quantity_to_buy = (cash_per_asset / asset.last_price()).amount;
                 quantities_to_buy.push((quantity_to_buy, asset.ticker.clone()));
             }
         }

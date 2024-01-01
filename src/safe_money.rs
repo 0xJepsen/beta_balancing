@@ -1,10 +1,7 @@
-
-
 pub trait Currency {
     fn name() -> &'static str;
     fn symbol() -> &'static str;
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct USD {
@@ -56,8 +53,6 @@ impl std::convert::From<f64> for USD {
     }
 }
 
-
-
 impl Add<USD> for f64 {
     type Output = USD;
 
@@ -106,7 +101,6 @@ impl USD {
         }
     }
 }
-
 
 impl Sub for USD {
     type Output = Self;
@@ -193,7 +187,7 @@ impl<C: Currency> Sub for Dense<C> {
     }
 }
 
-impl<C: Currency> Mul for Dense<C> {    
+impl<C: Currency> Mul for Dense<C> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
@@ -235,7 +229,7 @@ impl<C: Currency> Sub for Discrete<C> {
         }
     }
 }
-    
+
 impl<C: Currency> Mul for Discrete<C> {
     type Output = Self;
     fn mul(self, other: Self) -> Self {
@@ -256,7 +250,11 @@ impl<C: Currency> Div for Discrete<C> {
     }
 }
 
-use std::{fmt, marker::PhantomData, ops::{Add, Sub, Mul, Div}};
+use std::{
+    fmt,
+    marker::PhantomData,
+    ops::{Add, Div, Mul, Sub},
+};
 
 impl<C: Currency> fmt::Display for Dense<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -266,7 +264,12 @@ impl<C: Currency> fmt::Display for Dense<C> {
 
 impl<C: Currency> fmt::Debug for Dense<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Dense {{ amount: {}, currency: {} }}", self.amount, C::symbol())
+        write!(
+            f,
+            "Dense {{ amount: {}, currency: {} }}",
+            self.amount,
+            C::symbol()
+        )
     }
 }
 
@@ -278,7 +281,12 @@ impl<C: Currency> fmt::Display for Discrete<C> {
 
 impl<C: Currency> fmt::Debug for Discrete<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Discrete {{ cents: {}, currency: {} }}", self.cents, C::symbol())
+        write!(
+            f,
+            "Discrete {{ cents: {}, currency: {} }}",
+            self.cents,
+            C::symbol()
+        )
     }
 }
 
@@ -306,6 +314,7 @@ impl<C: Currency> From<f64> for Discrete<C> {
 }
 
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]
@@ -383,5 +392,4 @@ mod tests {
         let money: Discrete<USD> = Discrete::from(10.0); // 1000 cents = 10 USD
         assert_eq!(format!("{}", money), "1000 cents in USD");
     }
-
 }
