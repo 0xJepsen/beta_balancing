@@ -5,6 +5,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use polars::prelude::*;
 
 use crate::assets::{Asset, Crypto, Stock};
+use crate::safe_money::USD;
 
 pub struct Portfolio {
     // asset and wieght
@@ -20,19 +21,19 @@ pub struct Portfolio {
     // reblance threshold
     pub rebalance_threshold: Option<f64>,
     // cash on hand
-    pub cash: f64,
+    pub cash: USD,
 }
 impl Portfolio {
     pub fn builder() -> PortfolioBuilder {
         PortfolioBuilder::new()
     }
 
-    pub fn get_portfolio_value(&self) -> f64 {
+    pub fn get_portfolio_value(&self) -> USD {
         let stocks_value = self
             .positions
             .0
             .iter()
-            .fold(0.0, |acc, x| acc + (x.last_price * x.amount_held));
+            .fold(0.0, |acc, x| acc + (x.last_price.amount * x.amount_held));
         let cryptos_value = self
             .positions
             .1
@@ -52,12 +53,12 @@ impl Portfolio {
             .map(|x| x as &dyn Asset)
             .chain(self.positions.1.iter().map(|x| x as &dyn Asset))
         {
-            let weight = asset.last_price() * asset.amount_held() / total_value;
+            let weight = (USD::new(asset.last_price().amount * asset.amount_held()) / total_value).amount;
             actual_weights.insert(asset.ticker(), weight);
         }
 
         // Add cash weight
-        let cash_weight = self.cash / total_value;
+        let cash_weight = (self.cash / total_value).amount;
         actual_weights.insert("CASH".to_string(), cash_weight);
 
         let total_weight: f64 = actual_weights.values().sum();
@@ -120,13 +121,13 @@ impl Portfolio {
         for asset in &self.positions.0 {
             if let Some(target_weight) = target_weights.get(&asset.ticker) {
                 let actual_weight = actual_weights.get(&asset.ticker()).unwrap_or(&0.0);
-                let target_value = original_pvf * (*target_weight);
-                let actual_value = original_pvf * (*actual_weight);
-                let diff = target_value - actual_value;
+                let target_quantity = original_pvf.amount * (*target_weight);
+                let actual_quantity = original_pvf.amount * (*actual_weight);
+                let amount_to_trade = target_quantity - actual_quantity;
 
-                if diff.abs() > 1e-8 {
+                if amount_to_trade.abs() > self.rebalance_threshold.unwrap_or(0.0) {
                     let price = asset.last_price();
-                    let quantity_to_trade = diff / price;
+                    let quantity_to_trade = amount_to_trade / price;
                     trades.push((quantity_to_trade, asset.ticker.clone()));
                 }
             }
@@ -151,13 +152,14 @@ impl Portfolio {
     fn reinvest(&mut self) -> Result<()> {
         let excess_cash = self.cash;
         let num_assets = self.positions.0.len() as f64;
-        let cash_per_asset = excess_cash / num_assets;
+        let cash_per_asset = USD::new(excess_cash.amount / num_assets);
 
         let mut quantities_to_buy = Vec::new();
 
         for asset in &self.positions.0 {
-            if cash_per_asset > 0.0 {
-                let quantity_to_buy = cash_per_asset / asset.last_price();
+            if cash_per_asset.amount > 0.0 {
+                let quantity_to_buy = 
+                (cash_per_asset / asset.last_price()).amount;
                 quantities_to_buy.push((quantity_to_buy, asset.ticker.clone()));
             }
         }
@@ -179,10 +181,10 @@ impl Portfolio {
             .iter()
             .find(|x| x.ticker == ticker)
             .unwrap();
-        if quantity * asset.last_price > self.cash {
+        if USD::new(quantity * asset.last_price.amount) > self.cash {
             return Err(anyhow::Error::msg("Not enough cash"));
         } else {
-            self.cash -= quantity * asset.last_price;
+            self.cash -= USD::new(quantity * asset.last_price.amount);
             let asset = self
                 .positions
                 .0
@@ -207,7 +209,7 @@ impl Portfolio {
         if quantity > asset.amount_held {
             return Err(anyhow::Error::msg("Not enough assets to sell"));
         } else {
-            self.cash += quantity * asset.last_price;
+            self.cash += USD::new(quantity * asset.last_price.amount);
             let asset = self
                 .positions
                 .0
@@ -264,7 +266,7 @@ impl PortfolioBuilder {
                 actual_weights,
                 rebalance_type: RebalanceType::Threshold(REBALANCE_THRESHOLD),
                 rebalance_threshold: self.rebalance_threshold,
-                cash: 0.0,
+                cash: 0.0.into(),
             })
         } else {
             Ok(Portfolio {
@@ -273,7 +275,7 @@ impl PortfolioBuilder {
                 actual_weights: self.actual_weights,
                 rebalance_type: self.rebalance_type,
                 rebalance_threshold: self.rebalance_threshold,
-                cash: 0.0,
+                cash: 0.0.into(),
             })
         }
     }

@@ -1,6 +1,7 @@
 use anyhow::{Ok, Result};
 pub mod assets;
 pub mod portfolio;
+pub mod safe_money;
 #[allow(dead_code)]
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -22,7 +23,7 @@ async fn main() -> Result<()> {
     println!("Target weights: {:#?}", portfolio.target_weights);
     println!("actual weights:{:#?} ", portfolio.get_actual_weights()?);
     println!("Portfolio value: {}", portfolio.get_portfolio_value());
-    println!("cash: {:#?}", portfolio.cash);
+    println!("cash: {}", portfolio.cash);
 
     Ok(())
 }

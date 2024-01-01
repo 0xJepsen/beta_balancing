@@ -1,14 +1,16 @@
 use anyhow::Result;
 use yahoo_finance_api::YahooConnector;
 
+use crate::safe_money::USD;
+
 pub trait Asset {
-    fn last_price(&self) -> f64;
+    fn last_price(&self) -> USD;
     fn amount_held(&self) -> f64;
     fn ticker(&self) -> String;
 }
 
 impl Asset for Stock {
-    fn last_price(&self) -> f64 {
+    fn last_price(&self) -> USD {
         self.last_price
     }
     fn amount_held(&self) -> f64 {
@@ -20,8 +22,8 @@ impl Asset for Stock {
 }
 
 impl Asset for Crypto {
-    fn last_price(&self) -> f64 {
-        self.last_price
+    fn last_price(&self) -> USD {
+        USD::new(self.last_price)
     }
     fn amount_held(&self) -> f64 {
         self.amount_held
@@ -34,7 +36,7 @@ pub struct Stock {
     pub ticker: String,
     pub amount_held: f64,
     pub client: YahooConnector,
-    pub last_price: f64,
+    pub last_price: USD,
     pub name: String,
 }
 
@@ -54,7 +56,7 @@ impl Stock {
         let client = YahooConnector::new();
         let res = client.get_latest_quotes(ticker, "1d").await?;
         let currency = res.metadata().unwrap().currency;
-        let last_price = res.last_quote()?.close;
+        let last_price = USD::new(res.last_quote()?.close);
 
         Ok(Self {
             amount_held: ammount,
@@ -68,7 +70,7 @@ impl Stock {
     #[allow(dead_code)]
     pub async fn fetch_price(&mut self) -> Result<()> {
         let res = self.client.get_latest_quotes(&self.ticker, "1d").await?;
-        self.last_price = res.last_quote()?.close;
+        self.last_price = USD::new(res.last_quote()?.close);
         Ok(())
     }
 }
