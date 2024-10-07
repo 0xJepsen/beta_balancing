@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.86"
-futures = "0.3.30"
+futures = "0.3.31"
 polars = "0.40.0"
 tokio = { version = "1.38.1", features = ["full"] }
 yahoo_finance_api = "2.1.0"
