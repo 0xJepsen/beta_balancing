@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = "1.0.95"
 futures = "0.3.31"
 polars = "0.40.0"
-tokio = { version = "1.43.0", features = ["full"] }
+tokio = { version = "1.45.0", features = ["full"] }
 yahoo_finance_api = "2.1.0"
 
 rust-gecko = { git = "https://github.com/0xJepsen/rust-gecko.git", branch = "main" }
